@@ -8,7 +8,7 @@ const DEFAULT_MIRRORS = ['https://kinogo.la', 'https://kinogo.media', 'https://k
 
 export const CATEGORIES = {
   movie: [
-    { label: 'Новинки', path: '/novinki/' },
+    { label: 'Все фильмы', path: '/film/' },
     { label: 'Русские фильмы', path: '/film/russkie-filmy/' },
     { label: 'Зарубежные фильмы', path: '/film/zarubezhnye-filmy/' },
     { label: 'Боевики', path: '/film/boeviki/' },
@@ -21,7 +21,6 @@ export const CATEGORIES = {
     { label: 'Мелодрамы', path: '/film/melodramy/' },
     { label: 'Военные', path: '/film/voennye/' },
     { label: 'Мультфильмы', path: '/mult/' },
-    { label: 'Все фильмы', path: '/film/' },
   ],
   series: [
     { label: 'Сериалы', path: '/serial/' },
