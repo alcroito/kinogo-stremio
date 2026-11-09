@@ -20,7 +20,14 @@ http
       res.writeHead(204, CORS);
       return res.end();
     }
-    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    // Throwing here would be an unhandled rejection, which exits the process.
+    let url;
+    try {
+      url = new URL(req.url, 'http://localhost');
+    } catch {
+      res.writeHead(400, CORS);
+      return res.end();
+    }
     const query = Object.fromEntries(url.searchParams);
     const { status, headers, body } = await handleRequest(url.pathname, query, {
       host: req.headers.host,
