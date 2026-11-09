@@ -14,9 +14,12 @@ export const MANIFEST = {
   description:
     'Русские фильмы и сериалы с Kinogo: поиск, каталоги по жанрам, автоопределение сериалов и все доступные потоки.',
   logo: 'https://kinogo.la/templates/Kinogo/images/logo.png',
-  resources: ['catalog', 'meta', 'stream'],
+  resources: [
+    'catalog',
+    { name: 'meta', types: ['movie', 'series'], idPrefixes: ['kinogo'] },
+    { name: 'stream', types: ['movie', 'series'], idPrefixes: ['kinogo', 'tt'] },
+  ],
   types: ['movie', 'series'],
-  idPrefixes: ['kinogo', 'tt'],
   catalogs: [
     {
       type: 'movie',
