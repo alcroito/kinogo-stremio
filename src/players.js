@@ -2,7 +2,7 @@
 // more third-party balancers, so "all streams" means: resolve every embed, and
 // return every quality each one exposes.
 
-import { siteFetch, isGeoBlocked } from './fetch.js';
+import { siteFetch, isGeoBlocked, UA_FALLBACK } from './fetch.js';
 import { cached } from './cache.js';
 import { decodeEntities } from './html.js';
 
@@ -282,6 +282,21 @@ async function resolveOne(embedUrl, { referer, season, episode, depth = 0 }) {
   return { host, geoBlocked: false, sources: unique, status: r.status };
 }
 
+// Sends the same headers as the stream's proxyHeaders. Unreachable counts as
+// usable: a slow probe from this host says nothing about the viewer's playback.
+async function isForbidden(url, referer) {
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': UA_FALLBACK, Referer: referer },
+      signal: AbortSignal.timeout(5000),
+    });
+    await res.body?.cancel();
+    return res.status === 403;
+  } catch {
+    return false;
+  }
+}
+
 // Resolve every embed on a post, in parallel, into Stremio-ready stream objects.
 export async function resolveStreams(item, { season = null, episode = null } = {}) {
   const key = `streams:${item.postId}:${season ?? 'x'}:${episode ?? 'x'}`;
@@ -309,8 +324,9 @@ export async function resolveStreams(item, { season = null, episode = null } = {
           });
         }
       }
-      streams.sort((a, b) => b.rank - a.rank);
-      return { streams, diagnostics: results.map((r) => ({ host: r.host, geoBlocked: !!r.geoBlocked, found: r.sources.length, status: r.status, error: r.error })) };
+      const forbidden = await Promise.all(streams.map((s) => isForbidden(s.url, item.url)));
+      const usable = streams.filter((_, i) => !forbidden[i]).sort((a, b) => b.rank - a.rank);
+      return { streams: usable, diagnostics: results.map((r) => ({ host: r.host, geoBlocked: !!r.geoBlocked, found: r.sources.length, status: r.status, error: r.error })) };
     },
     5 * 60 * 1000
   );
