@@ -38,8 +38,8 @@ async function getDispatcher() {
 //                      embed domains rotate, so allow-listing them is futile;
 //                      anything that is not the site is treated as a player.
 //
-// Stream URLs are handed to Stremio untouched: the CDNs themselves are not
-// geo-locked, so playback works from the viewer's own connection.
+// Video segments are never proxied: the CDNs themselves are not geo-locked, so
+// playback works from the viewer's own connection.
 function isSiteHost(url) {
   let host;
   try {

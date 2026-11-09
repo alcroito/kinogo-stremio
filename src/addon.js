@@ -4,6 +4,7 @@ import { CATEGORIES, search, browse, detail, splitTitle, pMap } from './kinogo.j
 import { resolveStreams, getPlaylistTree } from './players.js';
 import { UA_FALLBACK } from './fetch.js';
 import { cached } from './cache.js';
+import { isPlaylistUrl, proxiedPlaylistUrl, servePlaylist } from './hls.js';
 
 const PAGE_SIZE = 12; // one DLE listing page
 
@@ -223,12 +224,12 @@ async function findByImdb(imdbId, type, season) {
   });
 }
 
-function streamEntry(s, item) {
+function streamEntry(s, item, ctx) {
   const quality = s.quality || 'auto';
   return {
     name: `Kinogo\n${quality}`,
     title: `${displayName(item)}\n${s.host}`,
-    url: s.url,
+    url: ctx.host && isPlaylistUrl(s.url) ? proxiedPlaylistUrl(s.url, ctx) : s.url,
     behaviorHints: {
       // The CDN answers 410 Gone to any request without a browser User-Agent —
       // Referer and Origin are ignored entirely. Playback therefore has to go
@@ -269,7 +270,7 @@ async function delegateStream(type, id) {
   }
 }
 
-async function handleStream(type, id) {
+async function handleStream(type, id, ctx) {
   const delegated = await delegateStream(type, id);
   if (delegated) return delegated;
 
@@ -309,7 +310,7 @@ async function handleStream(type, id) {
       ],
     };
   }
-  return { streams: streams.map((s) => streamEntry(s, d)) };
+  return { streams: streams.map((s) => streamEntry(s, d, ctx)) };
 }
 
 function parseExtra(raw = '') {
@@ -352,7 +353,11 @@ export async function route(pathname, query = {}, ctx = {}) {
   }
 
   if (parts[0] === 'stream' && parts.length === 3) {
-    return { status: 200, json: await handleStream(parts[1], parts[2].replace(/\.json$/, '')) };
+    return { status: 200, json: await handleStream(parts[1], parts[2].replace(/\.json$/, ''), ctx) };
+  }
+
+  if (parts[0] === 'hls' && parts.length === 3 && parts[2] === 'index.m3u8') {
+    return servePlaylist(parts[1], ctx);
   }
 
   // /debug/embed fetches any URL it is given, so a public instance must not serve these.

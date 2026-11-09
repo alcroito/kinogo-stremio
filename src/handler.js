@@ -11,7 +11,19 @@ const CORS = {
 
 export async function handleRequest(pathname, query, ctx = {}) {
   try {
-    const { status, json, html } = await route(pathname, query, ctx);
+    const { status, json, html, playlist } = await route(pathname, query, ctx);
+    if (playlist !== undefined) {
+      return {
+        status,
+        headers: {
+          ...CORS,
+          'Content-Type': 'application/vnd.apple.mpegurl',
+          'Content-Length': Buffer.byteLength(playlist),
+          'Cache-Control': 'no-store',
+        },
+        body: playlist,
+      };
+    }
     const cacheable = status === 200 && !pathname.includes('/debug/');
     return {
       status,

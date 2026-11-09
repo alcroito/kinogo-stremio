@@ -46,8 +46,10 @@ Two opposite constraints, which is why routing is decided per host:
 So: site pages go out directly, player embeds go through a Russian exit, and
 the resulting stream URLs are handed to Stremio untouched — the CDNs
 (`cdnr.interkh.com` and friends) are **not** geo-locked and serve the same 200
-from anywhere. No stream proxying is needed, and playback does not depend on
-this machine staying up.
+from anywhere. Video segments go straight from the CDN to the player. HLS
+playlists are served by the addon through signed `/hls/` URLs, because the CDN
+sends them chunked and players using FFmpeg's `reconnect_streamed` (Nuvio) loop
+forever on that, so starting an HLS stream needs this machine to be up.
 
 The Russian exit is a VPN Gate OpenVPN endpoint run as `kinogo-vpn.service`
 with `--route-nopull`, so it never becomes the default route. Selection is by
@@ -97,6 +99,7 @@ and UA are then reused for ~20 minutes.
 | `KINOGO_MIRRORS` | `kinogo.la,kinogo.media,kinogo1.biz` | Tried in order; the first healthy one sticks for 30 min. |
 | `CACHE_TTL` | `900` | Seconds for search/browse/detail caching. |
 | `PORT` / `HOST` | `7000` / `0.0.0.0` | Standalone server only. |
+| `HLS_SECRET` | random per start | Signs `/hls/` playlist URLs. Set it when several instances serve the same addon, such as on Vercel. |
 | `DEBUG_ROUTES` | — | Set to `1` to enable `/debug/*`. Keep it off on public instances: `/debug/embed` fetches any URL. |
 
 ## Self-hosting on the Pi (primary deployment)
