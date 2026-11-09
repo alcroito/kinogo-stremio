@@ -97,6 +97,7 @@ and UA are then reused for ~20 minutes.
 | `KINOGO_MIRRORS` | `kinogo.la,kinogo.media,kinogo1.biz` | Tried in order; the first healthy one sticks for 30 min. |
 | `CACHE_TTL` | `900` | Seconds for search/browse/detail caching. |
 | `PORT` / `HOST` | `7000` / `0.0.0.0` | Standalone server only. |
+| `DEBUG_ROUTES` | — | Set to `1` to enable `/debug/*`. Keep it off on public instances: `/debug/embed` fetches any URL. |
 
 ## Self-hosting on the Pi (primary deployment)
 
@@ -180,7 +181,7 @@ season, and anything below the threshold is dropped rather than guessed at.
 ## Diagnostics
 
 The player layer is the part most likely to drift when a balancer changes, so
-two debug routes are included:
+debug routes are included. They return 404 unless `DEBUG_ROUTES=1` is set:
 
 ```bash
 curl localhost:7000/debug/health | jq

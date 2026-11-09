@@ -95,7 +95,6 @@ export function landingPage({ host, proto }) {
     </div>
 
     <footer>
-      Диагностика: <a href="/debug/health">/debug/health</a> ·
       Манифест: <a href="/manifest.json">/manifest.json</a>
     </footer>
   </main>

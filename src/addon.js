@@ -300,7 +300,7 @@ async function handleStream(type, id) {
           name: 'Kinogo',
           title: blocked
             ? '⚠ Источник недоступен для вашего региона\nНужен RU-прокси (PROXY_URL)'
-            : '⚠ Потоки не найдены\nПроверьте /debug/streams для диагностики',
+            : '⚠ Потоки не найдены',
           externalUrl: d.url,
         },
       ],
@@ -350,6 +350,11 @@ export async function route(pathname, query = {}, ctx = {}) {
 
   if (parts[0] === 'stream' && parts.length === 3) {
     return { status: 200, json: await handleStream(parts[1], parts[2].replace(/\.json$/, '')) };
+  }
+
+  // /debug/embed fetches any URL it is given, so a public instance must not serve these.
+  if (parts[0] === 'debug' && process.env.DEBUG_ROUTES !== '1') {
+    return { status: 404, json: { error: 'not found', seen: clean } };
   }
 
   // Diagnostics — the player layer is the part most likely to drift.
