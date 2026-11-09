@@ -2,6 +2,9 @@
 // like a Cloudflare interstitial. Cookies + UA from a solve are reused so we
 // don't pay for a browser round-trip on every request.
 
+import { lookup } from 'node:dns/promises';
+import { BlockList } from 'node:net';
+
 const UA_FALLBACK =
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
@@ -60,6 +63,52 @@ function isSiteHost(url) {
 
 export function shouldProxy(url) {
   return Boolean(env('PROXY_URL')) && !isSiteHost(url);
+}
+
+const PRIVATE_ADDRESSES = new BlockList();
+for (const [addr, bits] of [
+  ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16],
+  ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['224.0.0.0', 3],
+]) {
+  PRIVATE_ADDRESSES.addSubnet(addr, bits, 'ipv4');
+}
+for (const [addr, bits] of [
+  ['::', 128], ['::1', 128], ['64:ff9b::', 96], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8],
+]) {
+  PRIVATE_ADDRESSES.addSubnet(addr, bits, 'ipv6');
+}
+
+export class BlockedUrlError extends Error {}
+
+async function assertPublic(url) {
+  const { protocol, hostname } = new URL(url);
+  if (protocol !== 'http:' && protocol !== 'https:') throw new BlockedUrlError(`blocked scheme: ${url}`);
+  const addresses = await lookup(hostname.replace(/^\[|\]$/g, ''), { all: true });
+  if (addresses.some((a) => PRIVATE_ADDRESSES.check(a.address, a.family === 6 ? 'ipv6' : 'ipv4'))) {
+    throw new BlockedUrlError(`blocked private address: ${url}`);
+  }
+}
+
+const MAX_REDIRECTS = 5;
+
+// These URLs come from third-party pages, so every redirect hop must be checked too.
+export async function publicFetch(url, options) {
+  let current = url;
+  let hopOptions = options;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    await assertPublic(current);
+    const res = await fetch(current, { ...hopOptions, redirect: 'manual' });
+    const location = res.headers.get('location');
+    if (res.status < 300 || res.status >= 400 || !location) return { res, url: current };
+    await res.body?.cancel();
+    const next = new URL(location, current).href;
+    if (new URL(next).origin !== new URL(current).origin) {
+      const { Cookie, ...headers } = hopOptions.headers;
+      hopOptions = { ...hopOptions, headers };
+    }
+    current = next;
+  }
+  throw new Error(`too many redirects: ${url}`);
 }
 
 // Per-origin browser identity handed back by FlareSolverr.
@@ -122,16 +171,15 @@ async function plainFetch(url, { referer, timeout = 20000, headers = {} } = {}) 
   try {
     const opts = {
       headers: headersFor(url, referer ? { Referer: referer, ...headers } : headers),
-      redirect: 'follow',
       signal: ctrl.signal,
     };
     if (shouldProxy(url)) {
       const d = await getDispatcher();
       if (d) opts.dispatcher = d;
     }
-    const res = await fetch(url, opts);
+    const { res, url: finalUrl } = await publicFetch(url, opts);
     const body = await res.text();
-    return { status: res.status, body, url: res.url, via: 'direct' };
+    return { status: res.status, body, url: finalUrl, via: 'direct' };
   } finally {
     clearTimeout(timer);
   }
@@ -152,6 +200,7 @@ async function flareFetch(url, { timeout = 60000 } = {}) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeout);
   try {
+    await assertPublic(url);
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

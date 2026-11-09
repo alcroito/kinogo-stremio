@@ -2,7 +2,7 @@
 // more third-party balancers, so "all streams" means: resolve every embed, and
 // return every quality each one exposes.
 
-import { siteFetch, isGeoBlocked, UA_FALLBACK } from './fetch.js';
+import { siteFetch, isGeoBlocked, publicFetch, BlockedUrlError, UA_FALLBACK } from './fetch.js';
 import { cached } from './cache.js';
 import { decodeEntities } from './html.js';
 
@@ -286,14 +286,14 @@ async function resolveOne(embedUrl, { referer, season, episode, depth = 0 }) {
 // usable: a slow probe from this host says nothing about the viewer's playback.
 async function isForbidden(url, referer) {
   try {
-    const res = await fetch(url, {
+    const { res } = await publicFetch(url, {
       headers: { 'User-Agent': UA_FALLBACK, Referer: referer },
       signal: AbortSignal.timeout(5000),
     });
     await res.body?.cancel();
     return res.status === 403;
-  } catch {
-    return false;
+  } catch (e) {
+    return e instanceof BlockedUrlError;
   }
 }
 
