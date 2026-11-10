@@ -33,15 +33,25 @@ function verifiedUrl(token) {
   return Buffer.from(encoded, 'base64url').toString();
 }
 
+const FAILOVER = /(?:GROUP-ID|AUDIO)="failover/;
+const isVariant = (line) => line.startsWith('#EXT-X-STREAM-INF');
+
+// The CDN lists every rendition twice, and FFmpeg loads all of them at startup.
+function withoutFailover(lines) {
+  if (!lines.some((line) => isVariant(line) && !FAILOVER.test(line))) return lines;
+  return lines.filter((line, i) => {
+    const previous = lines[i - 1] ?? '';
+    return !FAILOVER.test(line) && !(isVariant(previous) && FAILOVER.test(previous));
+  });
+}
+
 function rewritePlaylist(text, baseUrl, ctx) {
   const target = (ref) => {
     const absolute = new URL(ref, baseUrl).href;
     return isPlaylistUrl(absolute) ? proxiedPlaylistUrl(absolute, ctx) : absolute;
   };
-  return text
-    .split('\n')
-    .map((raw) => {
-      const line = raw.trim();
+  return withoutFailover(text.split('\n').map((raw) => raw.trim()))
+    .map((line) => {
       if (!line) return line;
       if (line.startsWith('#')) return line.replace(/URI="([^"]+)"/g, (_, ref) => `URI="${target(ref)}"`);
       return target(line);
